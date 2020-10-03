@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use crate::bindgen::cdecl;
-use crate::bindgen::config::{Config, Layout};
+use crate::bindgen::config::{Config, Language, Layout};
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
@@ -243,7 +243,7 @@ impl Source for Function {
                 if let Some(ref prefix) = prefix {
                     write!(out, "{} ", prefix);
                 }
-                if func.annotations.must_use {
+                if func.annotations.must_use && config.language != Language::Cython {
                     if let Some(ref anno) = config.function.must_use {
                         write!(out, "{} ", anno);
                     }
@@ -257,13 +257,15 @@ impl Source for Function {
                 }
             }
 
-            if let Some(ref swift_name_macro) = config.function.swift_name_macro {
-                if let Some(swift_name) = func.swift_name() {
-                    write!(out, " {}({})", swift_name_macro, swift_name);
+            if config.language != Language::Cython {
+                if let Some(ref swift_name_macro) = config.function.swift_name_macro {
+                    if let Some(swift_name) = func.swift_name() {
+                        write!(out, " {}({})", swift_name_macro, swift_name);
+                    }
                 }
             }
 
-            if func.never_return {
+            if func.never_return && config.language != Language::Cython {
                 if let Some(ref no_return_attr) = config.function.no_return {
                     out.write_fmt(format_args!(" {}", no_return_attr));
                 }
@@ -291,7 +293,7 @@ impl Source for Function {
                     write!(out, "{}", prefix);
                     out.new_line();
                 }
-                if func.annotations.must_use {
+                if func.annotations.must_use && config.language != Language::Cython {
                     if let Some(ref anno) = config.function.must_use {
                         write!(out, "{}", anno);
                         out.new_line();
@@ -312,7 +314,7 @@ impl Source for Function {
                 }
             }
 
-            if func.never_return {
+            if func.never_return && config.language != Language::Cython {
                 if let Some(ref no_return_attr) = config.function.no_return {
                     out.write_fmt(format_args!(" {}", no_return_attr));
                 }

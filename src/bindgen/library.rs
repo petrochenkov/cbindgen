@@ -62,12 +62,15 @@ impl Library {
             SortKey::None => { /* keep input order */ }
         }
 
-        if self.config.language == Language::C {
-            self.instantiate_monomorphs();
-            self.remove_excluded();
-            self.resolve_declaration_types();
-        } else {
-            self.remove_excluded();
+        match self.config.language {
+            Language::Cxx => {
+                self.remove_excluded();
+            }
+            Language::C | Language::Cython => {
+                self.instantiate_monomorphs();
+                self.remove_excluded();
+                self.resolve_declaration_types();
+            }
         }
 
         self.rename_items();

@@ -285,7 +285,8 @@ impl Item for Struct {
 
     fn rename_for_config(&mut self, config: &Config) {
         // Rename the name of the struct
-        if !self.is_tagged || config.language == Language::C {
+        if !self.is_tagged || config.language == Language::C || config.language == Language::Cython
+        {
             config.export.rename(&mut self.export_name);
         }
 
@@ -438,34 +439,50 @@ impl Source for Struct {
         //   typedef struct {
         // C with Both as style:
         //   typedef struct Name {
-        if config.language == Language::C && config.style.generate_typedef() {
-            out.write("typedef ");
+        match config.language {
+            Language::C if config.style.generate_typedef() => out.write("typedef "),
+            Language::C | Language::Cxx => {}
+            Language::Cython => out.write(config.style.cython_def()),
+        }
+
+        if let Some(align) = self.alignment {
+            if config.language == Language::Cython {
+                match align {
+                    ReprAlign::Packed => out.write("packed "),
+                    ReprAlign::Align(_) => {} // Not supported
+                }
+            }
         }
 
         out.write("struct");
 
         if let Some(align) = self.alignment {
-            match align {
-                ReprAlign::Packed => {
-                    if let Some(ref anno) = config.layout.packed {
-                        write!(out, " {}", anno);
+            if config.language != Language::Cython {
+                match align {
+                    ReprAlign::Packed => {
+                        if let Some(ref anno) = config.layout.packed {
+                            write!(out, " {}", anno);
+                        }
                     }
-                }
-                ReprAlign::Align(n) => {
-                    if let Some(ref anno) = config.layout.aligned_n {
-                        write!(out, " {}({})", anno, n);
+                    ReprAlign::Align(n) => {
+                        if let Some(ref anno) = config.layout.aligned_n {
+                            write!(out, " {}({})", anno, n);
+                        }
                     }
                 }
             }
         }
 
-        if self.annotations.must_use {
+        if self.annotations.must_use && config.language != Language::Cython {
             if let Some(ref anno) = config.structure.must_use {
                 write!(out, " {}", anno);
             }
         }
 
-        if config.language == Language::Cxx || config.style.generate_tag() {
+        if config.language == Language::Cxx
+            || config.language == Language::Cython
+            || config.style.generate_tag()
+        {
             write!(out, " {}", self.export_name());
         }
 
@@ -478,6 +495,9 @@ impl Source for Struct {
         }
 
         out.write_vertical_source_list(&self.fields, ListType::Cap(";"));
+        if config.language == Language::Cython && self.fields.is_empty() {
+            out.write("pass");
+        }
 
         if config.language == Language::Cxx {
             let mut wrote_start_newline = false;

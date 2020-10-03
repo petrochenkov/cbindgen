@@ -462,7 +462,9 @@ impl Item for Enum {
     fn rename_for_config(&mut self, config: &Config) {
         config.export.rename(&mut self.export_name);
 
-        if config.language == Language::C && self.tag.is_some() {
+        if self.tag.is_some()
+            && (config.language == Language::C || config.language == Language::Cython)
+        {
             // it makes sense to always prefix Tag with type name in C
             let new_tag = format!("{}_Tag", self.export_name);
             if self.repr.style == ReprStyle::Rust {
@@ -610,7 +612,7 @@ impl Source for Enum {
         if is_tagged && config.language == Language::Cxx {
             out.write(if separate_tag { "struct" } else { "union" });
 
-            if self.annotations.must_use {
+            if self.annotations.must_use && config.language != Language::Cython {
                 if let Some(ref anno) = config.structure.must_use {
                     write!(out, " {}", anno)
                 }
@@ -635,46 +637,57 @@ impl Source for Enum {
         };
 
         // Emit the actual enum
-        if config.language == Language::C {
-            if size.is_none() && config.style.generate_typedef() {
-                out.write("typedef ");
-            }
-
-            out.write("enum");
-
-            if size.is_some() || config.style.generate_tag() {
-                write!(out, " {}", enum_name);
-            }
-
-            if config.cpp_compat {
-                if let Some(prim) = size {
-                    out.new_line();
-                    out.write("#ifdef __cplusplus");
-                    out.new_line();
-                    write!(out, "  : {}", prim);
-                    out.new_line();
-                    out.write("#endif // __cplusplus");
-                    out.new_line();
+        match config.language {
+            Language::C => {
+                if size.is_none() && config.style.generate_typedef() {
+                    out.write("typedef ");
                 }
-            }
-        } else {
-            if config.enumeration.enum_class(&self.annotations) {
-                out.write("enum class");
-            } else {
+
                 out.write("enum");
-            }
 
-            if self.annotations.must_use {
-                if let Some(ref anno) = config.enumeration.must_use {
-                    write!(out, " {}", anno)
+                if size.is_some() || config.style.generate_tag() {
+                    write!(out, " {}", enum_name);
+                }
+
+                if config.cpp_compat {
+                    if let Some(prim) = size {
+                        out.new_line();
+                        out.write("#ifdef __cplusplus");
+                        out.new_line();
+                        write!(out, "  : {}", prim);
+                        out.new_line();
+                        out.write("#endif // __cplusplus");
+                        out.new_line();
+                    }
                 }
             }
+            Language::Cxx => {
+                if config.enumeration.enum_class(&self.annotations) {
+                    out.write("enum class");
+                } else {
+                    out.write("enum");
+                }
 
-            write!(out, " {}", enum_name);
-            if let Some(prim) = size {
-                write!(out, " : {}", prim);
+                if self.annotations.must_use && config.language != Language::Cython {
+                    if let Some(ref anno) = config.enumeration.must_use {
+                        write!(out, " {}", anno)
+                    }
+                }
+
+                write!(out, " {}", enum_name);
+                if let Some(prim) = size {
+                    write!(out, " : {}", prim);
+                }
+            }
+            Language::Cython => {
+                if size.is_none() {
+                    write!(out, "{}enum {}", config.style.cython_def(), enum_name);
+                } else {
+                    write!(out, "cdef enum");
+                }
             }
         }
+
         out.open_brace();
         for (i, variant) in self.variants.iter().enumerate() {
             if i != 0 {
@@ -690,17 +703,22 @@ impl Source for Enum {
             out.close_brace(true);
         }
 
-        if config.language == Language::C {
+        if config.language == Language::C || config.language == Language::Cython {
             if let Some(prim) = size {
-                if config.cpp_compat {
+                if config.cpp_compat && config.language == Language::C {
                     out.new_line_if_not_start();
                     out.write("#ifndef __cplusplus");
                 }
 
                 out.new_line();
-                write!(out, "typedef {} {};", prim, enum_name);
+                let typedef = if config.language == Language::Cython {
+                    "ctypedef"
+                } else {
+                    "typedef"
+                };
+                write!(out, "{} {} {};", typedef, prim, enum_name);
 
-                if config.cpp_compat {
+                if config.cpp_compat && config.language == Language::C {
                     out.new_line_if_not_start();
                     out.write("#endif // __cplusplus");
                 }
@@ -856,14 +874,16 @@ impl Source for Enum {
             out.new_line();
 
             // Emit the actual union
-            if config.language == Language::C {
-                if config.style.generate_typedef() {
+            if config.language == Language::C || config.language == Language::Cython {
+                if config.language == Language::Cython {
+                    out.write("cdef ");
+                } else if config.style.generate_typedef() {
                     out.write("typedef ");
                 }
 
                 out.write(if separate_tag { "struct" } else { "union" });
 
-                if config.style.generate_tag() {
+                if config.language == Language::Cython || config.style.generate_tag() {
                     write!(out, " {}", self.export_name());
                 }
 
@@ -900,7 +920,7 @@ impl Source for Enum {
 
             out.new_line();
 
-            if separate_tag {
+            if separate_tag && config.language != Language::Cython {
                 out.write("union");
                 out.open_brace();
             }
@@ -919,7 +939,7 @@ impl Source for Enum {
                     first = false;
                     let condition = variant.cfg.to_condition(config);
                     condition.write_before(config, out);
-                    if config.style.generate_typedef() {
+                    if config.style.generate_typedef() || config.language == Language::Cython {
                         write!(out, "{} {};", body.export_name(), field_name);
                     } else {
                         write!(out, "struct {} {};", body.export_name(), field_name);
@@ -928,7 +948,7 @@ impl Source for Enum {
                 }
             }
 
-            if separate_tag {
+            if separate_tag && config.language != Language::Cython {
                 out.close_brace(true);
             }
 

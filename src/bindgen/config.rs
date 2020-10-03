@@ -22,6 +22,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Language {
     Cxx,
     C,
+    Cython,
 }
 
 impl FromStr for Language {
@@ -39,6 +40,8 @@ impl FromStr for Language {
             "C++" => Ok(Language::Cxx),
             "c" => Ok(Language::C),
             "C" => Ok(Language::C),
+            "cython" => Ok(Language::Cython),
+            "Cython" => Ok(Language::Cython),
             _ => Err(format!("Unrecognized Language: '{}'.", s)),
         }
     }
@@ -198,6 +201,15 @@ impl Style {
         match self {
             Style::Both | Style::Type => true,
             Style::Tag => false,
+        }
+    }
+
+    // https://cython.readthedocs.io/en/latest/src/userguide/external_C_code.html#styles-of-struct-union-and-enum-declaration
+    pub fn cython_def(self) -> &'static str {
+        if self.generate_tag() {
+            "cdef "
+        } else {
+            "ctypedef "
         }
     }
 }

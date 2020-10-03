@@ -428,14 +428,20 @@ impl Type {
                 is_nullable: false,
                 is_ref: false,
             }),
-            "Box" if config.language == Language::C => Some(Type::Ptr {
-                ty: Box::new(generic),
-                is_const: false,
-                is_nullable: false,
-                is_ref: false,
-            }),
+            "Box" if config.language == Language::C || config.language == Language::Cython => {
+                Some(Type::Ptr {
+                    ty: Box::new(generic),
+                    is_const: false,
+                    is_nullable: false,
+                    is_ref: false,
+                })
+            }
             "Cell" => Some(generic),
-            "ManuallyDrop" | "MaybeUninit" if config.language == Language::C => Some(generic),
+            "ManuallyDrop" | "MaybeUninit"
+                if config.language == Language::C || config.language == Language::Cython =>
+            {
+                Some(generic)
+            }
             _ => None,
         }
     }

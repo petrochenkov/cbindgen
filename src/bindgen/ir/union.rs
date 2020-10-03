@@ -290,28 +290,35 @@ impl Source for Union {
         //   typedef union {
         // C with Both as style:
         //   typedef union Name {
-        if config.language == Language::C && config.style.generate_typedef() {
-            out.write("typedef ");
+        match config.language {
+            Language::C if config.style.generate_typedef() => out.write("typedef "),
+            Language::C | Language::Cxx => {}
+            Language::Cython => out.write(config.style.cython_def()),
         }
 
         out.write("union");
 
         if let Some(align) = self.alignment {
-            match align {
-                ReprAlign::Packed => {
-                    if let Some(ref anno) = config.layout.packed {
-                        write!(out, " {}", anno);
+            if config.language != Language::Cython {
+                match align {
+                    ReprAlign::Packed => {
+                        if let Some(ref anno) = config.layout.packed {
+                            write!(out, " {}", anno);
+                        }
                     }
-                }
-                ReprAlign::Align(n) => {
-                    if let Some(ref anno) = config.layout.aligned_n {
-                        write!(out, " {}({})", anno, n);
+                    ReprAlign::Align(n) => {
+                        if let Some(ref anno) = config.layout.aligned_n {
+                            write!(out, " {}({})", anno, n);
+                        }
                     }
                 }
             }
         }
 
-        if config.language == Language::Cxx || config.style.generate_tag() {
+        if config.language == Language::Cxx
+            || config.language == Language::Cython
+            || config.style.generate_tag()
+        {
             write!(out, " {}", self.export_name);
         }
 
