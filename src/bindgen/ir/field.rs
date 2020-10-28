@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use crate::bindgen::cdecl;
-use crate::bindgen::config::Config;
+use crate::bindgen::config::{Config, Language};
 use crate::bindgen::ir::{AnnotationSet, Documentation, Path, Type};
 use crate::bindgen::writer::{Source, SourceWriter};
 
@@ -46,8 +46,10 @@ impl Source for Field {
     fn write<F: Write>(&self, config: &Config, out: &mut SourceWriter<F>) {
         self.documentation.write(config, out);
         cdecl::write_field(out, &self.ty, &self.name, config);
-        if let Some(bitfield) = self.annotations.atom("bitfield") {
-            write!(out, ": {}", bitfield.unwrap_or_default());
+        if config.language != Language::Cython {
+            if let Some(bitfield) = self.annotations.atom("bitfield") {
+                write!(out, ": {}", bitfield.unwrap_or_default());
+            }
         }
     }
 }
